@@ -128,10 +128,8 @@ AACInfo AACParser::Parse(std::string filename)
     {
       std::cerr << "Channel configuration not valid!" << std::endl;
     }
-
-    return result;
   }
-
+  return result;
 }
 
 bool AACParser::ReadSyncWord(std::ifstream &stream)
