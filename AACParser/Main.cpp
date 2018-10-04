@@ -25,7 +25,10 @@ int main(int argc, char* argv[])
 		{
 			std::string filename = argv[i];
 			AACParser parser;
-			parser.Parse(filename);
+			AACInfo info = parser.Parse(filename);
+      int nFrames = parser.GetNumberOfFrames(filename, info);
+      info.PrintInfo();
+      std::cout << "Number of frames in AAC file: " << nFrames << std::endl;
 		}
 	}
 

@@ -14,10 +14,79 @@ AACParser::~AACParser()
 {
 }
 
-void AACParser::Parse(std::string filename)
+int AACParser::GetNumberOfFrames(std::string filename, AACInfo info)
+{
+  ifstream inFile;
+
+  inFile.open(filename, ios::in | ios::binary | ios::ate);
+  char* allBytes = 0;
+
+  inFile.seekg(0, ios::end);
+  size_t size = inFile.tellg();
+  inFile.seekg(0, ios::beg);
+
+  allBytes = new char[size + 1]; //  for the '\0'
+  inFile.read(allBytes, size);
+  allBytes[size] = '\0'; // set '\0' 
+
+  int nFrames = 0;
+
+  for (int i = 0; i < size - 1; i++)
+  {
+    if (WholeByteIsAllOnes(allBytes[i]))
+    {
+      if (FirstNibbleIsAllOnes(allBytes[i + 1]) && SecondNibbleMatchesSyncWord(allBytes[i + 1], info))
+      {
+        nFrames++;
+      }
+    }
+  }
+  return nFrames;
+}
+
+bool AACParser::SecondNibbleMatchesSyncWord(char wholeByte, AACInfo info)
+{
+  int MPEGbit = ReadBit(wholeByte, 4);
+  bool LayerMatches = ReadBit(wholeByte, 5) == 0 && ReadBit(wholeByte, 6) == 0;
+  int CRCbit = ReadBit(wholeByte, 7);
+
+  bool MPEGversionMatches = (info.MPEGversion == 2 && MPEGbit == 1) || (info.MPEGversion == 4 && MPEGbit == 0);
+  bool CRCmatches = (info.CRC && CRCbit == 0) || (!info.CRC && CRCbit == 1);
+
+  return LayerMatches && MPEGversionMatches && CRCmatches;
+}
+
+bool AACParser::FirstNibbleIsAllOnes(char wholeByte)
+{
+  for (int i = 0; i < 4; i++)
+  {
+    int bit = ReadBit(wholeByte, i);
+    if (bit != 1)
+    {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool AACParser::WholeByteIsAllOnes(char wholeByte)
+{
+  for (int i = 0; i < 8; i++)
+  {
+    int bit = ReadBit(wholeByte, i);
+    if (bit != 1)
+    {
+      return false;
+    }
+  }
+  return true;
+}
+
+AACInfo AACParser::Parse(std::string filename)
 {
   std::ifstream input;
   input.open(filename, std::ios::binary || std::ios::in);
+  AACInfo result;
 
   if (input.is_open())
   {
@@ -26,8 +95,7 @@ void AACParser::Parse(std::string filename)
       std::cerr << "Sync word not valid!" << std::endl;
     }
 
-    int MPEGversion;
-    if (!ReadMPEGVersion(input, MPEGversion))
+    if (!ReadMPEGVersion(input, result.MPEGversion))
     {
       std::cerr << "MPEG version not valid!" << std::endl;
     }
@@ -36,20 +104,17 @@ void AACParser::Parse(std::string filename)
       std::cerr << "Layer not valid!" << std::endl;
     }
 
-    bool crc;
-    if (!ReadProtectionAbsent(input, crc))
+    if (!ReadProtectionAbsent(input, result.CRC))
     {
       std::cerr << "Protection absent information not valid!" << std::endl;
     }
 
-    std::string profile;
-    if (!ReadProfile(input, profile))
+    if (!ReadProfile(input, result.profile))
     {
       std::cerr << "Profile information not valid!" << std::endl;
     }
 
-    int samplingFrequency;
-    if (!ReadSamlingFrequencyIndex(input, samplingFrequency))
+    if (!ReadSamlingFrequencyIndex(input, result.samplingFrequency))
     {
       std::cerr << "Sampling frequency index not valid!" << std::endl;
     }
@@ -59,13 +124,12 @@ void AACParser::Parse(std::string filename)
       std::cerr << "Private bit not valid!" << std::endl;
     }
 
-    std::string channelConfiguration;
-    if (!ReadChannelConfiguration(input, channelConfiguration))
+    if (!ReadChannelConfiguration(input, result.channelConfiguration))
     {
       std::cerr << "Channel configuration not valid!" << std::endl;
     }
-    PrintInfo(MPEGversion, crc, profile, samplingFrequency, channelConfiguration);
 
+    return result;
   }
 
 }
@@ -113,7 +177,6 @@ bool AACParser::ReadSyncWord(std::ifstream &stream)
     // if we get to here, syncword has been found, lets rewind to beginning of second byte,
     // so we can keep reading
     stream.seekg(syncWordPos - 1);
-    std::cout << "syncword found at: " << syncWordPos - 1 << std::endl;
     return true;
   }
 
@@ -353,16 +416,6 @@ bool AACParser::ReadChannelConfiguration(std::ifstream & stream, std::string & c
   stream.seekg(curPos);
 
   return result;
-}
-
-void AACParser::PrintInfo(int MPEGversion, bool crc, std::string profile, int samplingFrequency, std::string channelConfiguration)
-{
-  std::cout << "File information: " << std::endl
-    << "MPEG version: \t\tMPEG-" << MPEGversion << std::endl
-    << "CRC present: \t\t" << (crc ? "Yes" : "No") << std::endl
-    << "Profile: \t\t" << profile.c_str() << std::endl
-    << "Sampling frequency: \t" << samplingFrequency << "Hz" << std::endl
-    << "Channel configuration: \t" << channelConfiguration.c_str() << std::endl;
 }
 
 unsigned int AACParser::ReadBits(char byte, int offset, int numOfBits)

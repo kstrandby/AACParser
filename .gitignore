@@ -242,3 +242,5 @@ ModelManifest.xml
 .fake/
 /HeadFullOfDreams.aac
 /AACParser/HeadFullOfDreams.aac
+/AACParser/ReapersLCByffmpeg.aac
+/AACParser/syncwordpositions.txt
